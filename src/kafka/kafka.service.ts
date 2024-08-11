@@ -1,5 +1,12 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleDestroy,
+  OnModuleInit,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { Kafka, KafkaConfig, Admin, Producer, Consumer } from 'kafkajs';
+import { TrainService } from '../train/train.service';
 
 @Injectable()
 export class KafkaService implements OnModuleInit, OnModuleDestroy {
@@ -8,7 +15,10 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   private consumer: Consumer;
   private admin: Admin;
 
-  constructor() {
+  constructor(
+    @Inject(forwardRef(() => TrainService))
+    private readonly trainService: TrainService,
+  ) {
     const kafkaConfig: KafkaConfig = {
       clientId: 'my-app',
       brokers: ['192.0.0.1:9092'],
@@ -82,6 +92,22 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
         );
 
         // Process the message as needed
+        if (topic === 'train_activation') {
+          const { trainId, stanox, timestamp } = processedMessage;
+          await this.trainService.handleTrainActivation(
+            trainId,
+            stanox,
+            timestamp,
+          );
+        } else if (topic === 'train_cancellation') {
+          const { trainId, stanox, reasonCode, timestamp } = processedMessage;
+          await this.trainService.handleTrainCancellation(
+            trainId,
+            stanox,
+            reasonCode,
+            timestamp,
+          );
+        }
       },
     });
   }
